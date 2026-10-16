@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Login | AI Academic TA{% endblock %}
+
+{% block content %}
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-slate-800">AI Academic TA</h1>
+        <p class="mt-2 text-slate-600">Sign in to your study workspace</p>
+      </div>
+
+      <form method="POST" class="space-y-5">
+        <div>
+          <label for="username" class="block text-sm font-medium text-slate-700">Username</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            required
+            class="mt-1 block w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+
+        <div>
+          <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            class="mt-1 block w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+
+        <button type="submit" class="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 transition">
+          Log In
+        </button>
+      </form>
+
+      <p class="mt-6 text-center text-sm text-slate-600">
+        Need an account?
+        <a href="{{ url_for('register') }}" class="font-semibold text-blue-600 hover:text-blue-700">Create one</a>
+      </p>
+    </div>
+  </div>
+  <script>
+    document.querySelector('form[method="POST"]').addEventListener('submit', (event) => {
+      const form = event.currentTarget;
+      if (!form.reportValidity()) {
+        event.preventDefault();
+        return;
+      }
+
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.innerHTML = '<span class="inline-flex items-center justify-center gap-2"><span aria-hidden="true" class="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>Logging in...</span>';
+      button.classList.add('cursor-wait', 'opacity-80');
+    });
+  </script>
+{% endblock %}

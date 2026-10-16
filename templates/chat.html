@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | AI Academic TA{% endblock %}
+
+{% block content %}
+<div class="flex h-screen bg-slate-100">
+  <aside class="w-full max-w-xs bg-slate-900 text-slate-100 p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="text-xs uppercase text-slate-400">Workspace</p>
+        <h1 class="text-2xl font-bold">AI TA</h1>
+      </div>
+      <a href="{{ url_for('logout') }}" class="text-sm text-slate-300 hover:text-white">Logout</a>
+    </div>
+
+    <button id="newChatBtn" class="mb-5 rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 text-left font-medium hover:bg-slate-700 transition">
+      + New Chat
+    </button>
+
+    <div class="text-xs uppercase tracking-wide text-slate-400 mb-3">Recent threads</div>
+    <div id="sessionList" class="space-y-2 overflow-y-auto pr-1"></div>
+  </aside>
+
+  <main class="flex-1 flex flex-col p-6">
+    <div class="bg-white rounded-t-2xl border border-slate-200 shadow-sm p-4 flex items-center justify-between">
+      <div>
+        <p class="text-xs uppercase text-slate-500">Current Session</p>
+        <h2 id="sessionTitle" class="text-2xl font-bold text-slate-800">Select a chat</h2>
+      </div>
+      <button id="summarizeBtn" class="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-2 font-medium text-white transition">
+        Summarize Chat
+      </button>
+    </div>
+
+    <div id="referenceFiles" class="bg-white border-x border-slate-200 px-4 py-3 text-sm text-slate-600 hidden"></div>
+
+    <div id="chatMessages" class="flex-1 overflow-y-auto bg-white border border-slate-200 p-4 shadow-sm">
+      <div class="text-slate-500 italic">Choose a chat or create a new one to begin.</div>
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded-b-2xl p-4 shadow-sm">
+      <form id="uploadForm" class="mb-3 flex flex-wrap items-center gap-3">
+        <input id="pdfInput" type="file" accept="application/pdf" class="block text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100" />
+        <div id="uploadStatus" class="hidden items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700"></div>
+        <button type="submit" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition">
+          Upload PDF
+        </button>
+      </form>
+
+      <form id="chatForm" class="flex gap-3">
+        <textarea
+          id="messageInput"
+          rows="1"
+          placeholder="Ask the TA about debugging, algorithms, concepts, or code reviews..."
+          class="flex-1 resize-none rounded-xl border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        ></textarea>
+        <button type="submit" class="rounded-xl bg-slate-900 px-6 py-3 font-medium text-white hover:bg-slate-800 transition">
+          Send
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<style>
+  .markdown-body {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+  .markdown-body > :first-child { margin-top: 0; }
+  .markdown-body > :last-child { margin-bottom: 0; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3,
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 1.15em 0 0.45em;
+  }
+  .markdown-body h1 { font-size: 1.5rem; }
+  .markdown-body h2 { font-size: 1.3rem; }
+  .markdown-body h3 { font-size: 1.12rem; }
+  .markdown-body p { margin: 0.65em 0; }
+  .markdown-body ul, .markdown-body ol { margin: 0.5em 0; padding-left: 1.5rem; }
+  .markdown-body ul { list-style: disc; }
+  .markdown-body ol { list-style: decimal; }
+  .markdown-body li { margin: 0.2em 0; padding-left: 0.15rem; }
+  .markdown-body li > p { margin: 0.2em 0; }
+  .markdown-body blockquote {
+    border-left: 3px solid #94a3b8;
+    color: #475569;
+    margin: 0.8em 0;
+    padding: 0.15em 0 0.15em 1rem;
+  }
+  .markdown-body :not(pre) > code {
+    background: #e2e8f0;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+    padding: 0.1em 0.3em;
+  }
+  .markdown-body pre {
+    background: #0f172a;
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    margin: 0.8em 0;
+    overflow-x: auto;
+    padding: 0.9rem 1rem;
+    white-space: pre;
+  }
+  .markdown-body pre code { font-size: 0.875rem; }
+  .markdown-body table { border-collapse: collapse; display: block; margin: 0.8em 0; overflow-x: auto; }
+  .markdown-body th, .markdown-body td { border: 1px solid #cbd5e1; padding: 0.4rem 0.65rem; }
+  .markdown-body th { background: #e2e8f0; font-weight: 700; }
+  .markdown-body hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1rem 0; }
+  .markdown-body a { color: #2563eb; text-decoration: underline; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+<script>
+  const sessionList = document.getElementById('sessionList');
+  const chatMessages = document.getElementById('chatMessages');
+  const sessionTitle = document.getElementById('sessionTitle');
+  const messageInput = document.getElementById('messageInput');
+  const chatForm = document.getElementById('chatForm');
+  const uploadForm = document.getElementById('uploadForm');
+  const pdfInput = document.getElementById('pdfInput');
+  const summarizeBtn = document.getElementById('summarizeBtn');
+  const referenceFiles = document.getElementById('referenceFiles');
+  const uploadStatus = document.getElementById('uploadStatus');
+
+  let sessions = [];
+  let currentSessionId = null;
+  const pendingFilesBySession = new Map();
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[character]);
+  }
+
+  function renderMarkdown(value) {
+    const source = String(value ?? '').split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g)
+      .map((segment, index) => {
+        if (index % 2 === 1) {
+          return segment;
+        }
+
+        return segment
+          .replace(/^([\t ]*)\*[\t ]*\n([\t ]*)(?=\S)/gm, '$1- $2')
+          .replace(/^\s*\*\s*$/gm, '')
+          .replace(/\n[\t ]*\n(?:[\t ]*\n)+/g, '\n\n');
+      })
+      .join('');
+
+    if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+      return escapeHtml(source).replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    const html = marked.parse(source, { gfm: true, breaks: false });
+    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  }
+
+  function setLoadingState(isLoading, target = 'send') {
+    const sendButton = chatForm.querySelector('button[type="submit"]');
+    const newChatButton = document.getElementById('newChatBtn');
+
+    if (target === 'send') {
+      sendButton.disabled = isLoading;
+      sendButton.innerHTML = isLoading
+        ? '<span class="inline-flex items-center gap-2"><span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>Generating...</span>'
+        : 'Send';
+    }
+
+    if (target === 'new-chat') {
+      newChatButton.disabled = isLoading;
+      newChatButton.innerHTML = isLoading
+        ? '<span class="inline-flex items-center gap-2"><span class="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-100"></span>Creating...</span>'
+        : '+ New Chat';
+    }
+  }
+
+  function showUploadStatus(message) {
+    if (!message) {
+      uploadStatus.classList.add('hidden');
+      uploadStatus.innerHTML = '';
+      return;
+    }
+
+    uploadStatus.classList.remove('hidden');
+    uploadStatus.classList.add('inline-flex');
+    uploadStatus.innerHTML = `<span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>${message}`;
+  }
+
+  async function request(url, options = {}) {
+    const response = await fetch(url, options);
+    const contentType = response.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+
+    if (!response.ok) {
+      const message = typeof payload === 'object' && payload && payload.error
+        ? payload.error
+        : (typeof payload === 'string' ? payload : 'Request failed');
+      throw new Error(message);
+    }
+
+    return payload;
+  }
+
+  function renderSessionList() {
+    if (!sessions.length) {
+      sessionList.innerHTML = '<div class="rounded-lg border border-dashed border-slate-700 bg-slate-800/50 p-3 text-sm text-slate-400">No chats yet.</div>';
+      return;
+    }
+
+    sessionList.innerHTML = sessions
+      .map((session) => `
+        <div class="session-row flex items-center gap-2 rounded-xl ${currentSessionId === session.id ? 'bg-slate-700' : 'bg-slate-800/70'} p-2">
+          <button
+            type="button"
+            data-session-id="${session.id}"
+            class="session-item flex-1 rounded-lg p-2 text-left transition ${currentSessionId === session.id ? 'bg-slate-700 text-white' : 'bg-slate-800/70 text-slate-200 hover:bg-slate-700'}"
+          >
+            <div class="font-medium truncate">${session.title}</div>
+            <div class="text-xs text-slate-400">${new Date(session.updated_at).toLocaleString()}</div>
+          </button>
+          <button
+            type="button"
+            class="rename-session-btn rounded-lg border border-slate-600 bg-slate-800/50 p-2 text-slate-200 hover:bg-slate-700"
+            data-session-id="${session.id}"
+            title="Rename chat"
+            aria-label="Rename chat"
+          >✎</button>
+          <button
+            type="button"
+            class="delete-session-btn rounded-lg border border-rose-500/40 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+            data-session-id="${session.id}"
+            title="Delete chat"
+            aria-label="Delete chat"
+          >🗑</button>
+        </div>
+      `)
+      .join('');
+
+    document.querySelectorAll('.session-item').forEach((button) => {
+      button.addEventListener('click', () => selectSession(Number(button.dataset.sessionId)));
+    });
+
+    document.querySelectorAll('.rename-session-btn').forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const sessionId = Number(button.dataset.sessionId);
+        const session = sessions.find((item) => item.id === sessionId);
+        const nextTitle = window.prompt('Rename chat session', session?.title || 'Untitled Chat');
+
+        if (nextTitle === null) {
+          return;
+        }
+
+        const trimmed = nextTitle.trim();
+        if (!trimmed) {
+          alert('Please enter a valid chat title.');
+          return;
+        }
+
+        await request(`/api/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: trimmed }),
+        });
+
+        await loadSessions();
+        if (currentSessionId === sessionId) {
+          selectSession(sessionId);
+        }
+      });
+    });
+
+    document.querySelectorAll('.delete-session-btn').forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const sessionId = Number(button.dataset.sessionId);
+        const session = sessions.find((item) => item.id === sessionId);
+        const confirmed = window.confirm(`Delete "${session?.title || 'this chat'}"? This cannot be undone.`);
+
+        if (!confirmed) {
+          return;
+        }
+
+        await request(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+
+        sessions = sessions.filter((item) => item.id !== sessionId);
+        if (currentSessionId === sessionId) {
+          currentSessionId = sessions[0]?.id ?? null;
+        }
+
+        if (currentSessionId) {
+          selectSession(currentSessionId);
+        } else {
+          sessionTitle.textContent = 'Select a chat';
+          renderMessages([]);
+          renderReferenceFiles([]);
+        }
+
+        renderSessionList();
+      });
+    });
+  }
+
+  function renderMessages(messages) {
+    if (!messages.length) {
+      chatMessages.innerHTML = '<div class="text-slate-500 italic">No messages yet in this thread.</div>';
+      return;
+    }
+
+    chatMessages.innerHTML = messages
+      .map((message) => `
+        <div class="mb-4 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-3xl rounded-2xl px-4 py-3 ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}">
+            <div class="text-xs uppercase tracking-wide opacity-80 mb-1">${message.role === 'user' ? 'You' : 'TA'}</div>
+            <div class="${message.role === 'assistant' ? 'markdown-body' : 'whitespace-pre-wrap'}">${message.role === 'assistant' ? renderMarkdown(message.content) : escapeHtml(message.content)}</div>
+          </div>
+        </div>
+      `)
+      .join('');
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function renderReferenceFiles(files) {
+    if (!files.length) {
+      referenceFiles.classList.add('hidden');
+      referenceFiles.innerHTML = '';
+      return;
+    }
+
+    referenceFiles.classList.remove('hidden');
+    referenceFiles.innerHTML = files
+      .map((file) => `
+        <span class="mb-1 mr-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-blue-600">
+            <path d="M4.5 2.5A2.5 2.5 0 0 0 2 5v10A2.5 2.5 0 0 0 4.5 17.5h11A2.5 2.5 0 0 0 18 15V7.5a2.5 2.5 0 0 0-.74-1.77L14.27 2.74A2.5 2.5 0 0 0 12.5 2H4.5Zm7 1.25v3.5h3.5"/>
+          </svg>
+          ${escapeHtml(file.original_name)}
+        </span>
+      `)
+      .join('');
+  }
+
+  async function loadSessions() {
+    const data = await request('/api/sessions');
+    sessions = Array.isArray(data) ? data : [];
+    if (!currentSessionId && sessions.length) {
+      selectSession(sessions[0].id);
+      return;
+    }
+
+    if (currentSessionId && !sessions.some((session) => session.id === currentSessionId)) {
+      currentSessionId = sessions[0]?.id ?? null;
+      if (currentSessionId) {
+        selectSession(currentSessionId);
+        return;
+      }
+    }
+
+    renderSessionList();
+  }
+
+  async function selectSession(sessionId) {
+    currentSessionId = sessionId;
+    renderSessionList();
+
+    const data = await request(`/api/sessions/${sessionId}`);
+    sessionTitle.textContent = data.title || 'Untitled Chat';
+    renderMessages(data.messages || []);
+    renderReferenceFiles(pendingFilesBySession.get(sessionId) || []);
+    showUploadStatus(pendingFilesBySession.has(sessionId) ? 'File ready for next prompt' : '');
+  }
+
+  async function createNewChat() {
+    setLoadingState(true, 'new-chat');
+
+    const formData = new FormData();
+    formData.append('title', 'Untitled Chat');
+
+    try {
+      const session = await request('/api/sessions', {
+        method: 'POST',
+        body: formData,
+      });
+
+      sessions = [session, ...sessions];
+      currentSessionId = session.id;
+      renderSessionList();
+      sessionTitle.textContent = session.title;
+      renderMessages([]);
+      renderReferenceFiles([]);
+      pendingFilesBySession.delete(session.id);
+      showUploadStatus('');
+      return session;
+    } finally {
+      setLoadingState(false, 'new-chat');
+    }
+  }
+
+  async function sendMessage() {
+    const content = messageInput.value.trim();
+    if (!content) {
+      return;
+    }
+
+    setLoadingState(true, 'send');
+
+    try {
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        const createdSession = await createNewChat();
+        sessionId = createdSession.id;
+      }
+
+      const pendingFiles = pendingFilesBySession.get(sessionId) || [];
+      messageInput.value = '';
+      const response = await request(`/api/sessions/${sessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content,
+          uploaded_file_ids: pendingFiles.map((file) => file.id),
+        }),
+      });
+
+      if (response && response.error) {
+        alert(response.error);
+        return;
+      }
+
+      pendingFilesBySession.delete(sessionId);
+      const existing = await request(`/api/sessions/${sessionId}`);
+      if (currentSessionId === sessionId) {
+        renderReferenceFiles([]);
+        showUploadStatus('');
+        sessionTitle.textContent = existing.title || 'Untitled Chat';
+        renderMessages(existing.messages || []);
+      }
+      await loadSessions();
+    } catch (error) {
+      alert(error.message || 'Unable to send message.');
+    } finally {
+      setLoadingState(false, 'send');
+    }
+  }
+
+  async function uploadPdf(event) {
+    event.preventDefault();
+    if (!currentSessionId || !pdfInput.files.length) {
+      return;
+    }
+
+    const sessionId = currentSessionId;
+    const formData = new FormData();
+    formData.append('pdf_file', pdfInput.files[0]);
+
+    try {
+      const response = await request(`/api/sessions/${sessionId}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
+      const pendingFiles = pendingFilesBySession.get(sessionId) || [];
+      pendingFilesBySession.set(sessionId, [...pendingFiles, response]);
+      if (currentSessionId === sessionId) {
+        renderReferenceFiles(pendingFilesBySession.get(sessionId));
+        showUploadStatus('File ready for next prompt');
+      }
+      pdfInput.value = '';
+      await loadSessions();
+    } catch (error) {
+      alert(error.message || 'Failed to upload PDF.');
+    }
+  }
+
+  async function summarizeChat() {
+    if (!currentSessionId) {
+      return;
+    }
+
+    summarizeBtn.disabled = true;
+    summarizeBtn.setAttribute('aria-busy', 'true');
+    summarizeBtn.innerHTML = '<span class="inline-flex items-center gap-2"><span aria-hidden="true" class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>Summarizing...</span>';
+
+    try {
+      const response = await request(`/api/sessions/${currentSessionId}/summarize`, {
+        method: 'POST',
+      });
+
+      const summaryBox = document.createElement('div');
+      summaryBox.className = 'mb-4 rounded-2xl bg-violet-50 border border-violet-200 text-violet-900 p-4';
+      summaryBox.innerHTML = `<div class="text-xs uppercase tracking-wide mb-2 text-violet-700">Study Guide</div><div class="markdown-body">${renderMarkdown(response.summary)}</div>`;
+
+      chatMessages.appendChild(summaryBox);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    } catch (error) {
+      alert(error.message || 'Unable to summarize this chat.');
+    } finally {
+      summarizeBtn.disabled = false;
+      summarizeBtn.removeAttribute('aria-busy');
+      summarizeBtn.textContent = 'Summarize Chat';
+    }
+  }
+
+  document.getElementById('newChatBtn').addEventListener('click', createNewChat);
+  chatForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendMessage();
+  });
+  uploadForm.addEventListener('submit', uploadPdf);
+  summarizeBtn.addEventListener('click', summarizeChat);
+
+  messageInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  loadSessions();
+</script>
+{% endblock %}
